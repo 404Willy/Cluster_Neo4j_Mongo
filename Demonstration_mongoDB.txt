@@ -1,0 +1,71 @@
+step1 : Créer le cluster mongoDB avec le fichier docker-compose
+
+	- Se rendre dans le repertoire ou se trouve le fichier docker-compose
+	- Executer le script docker-compose up -d pour créer les conteneurs et les lancer automatiquement
+
+step2 : intialiser les différents réplicatset à partir des shards
+	
+	- docker-compose exec configsvr01 sh -c "mongosh < /scripts/init-configserver.js"
+	- docker-compose exec shard01-a sh -c "mongosh < /scripts/init-shard01.js"
+	- docker-compose exec shard02-a sh -c "mongosh < /scripts/init-shard02.js"
+
+step3 : Initialisation des routeurs
+
+	- docker-compose exec router01 sh -c "mongosh < /scripts/init-router.js"
+
+step 4 : Activer le routeur et configurer la clé de partage
+
+	- docker-compose exec router01 mongosh --port 27017 #Lancement du routeur 1 pour pouvoir implémenter le sharding
+	- sh.enableSharding("projet_nosql") #on la soumet au sharding
+	- db.adminCommand( { shardCollection: "projet_nosql.restaurants", key: { oemNumber: "hashed", zipCode: 1, supplierId: 1 } } ) Ajout d'une clé de partionnement sur notre collection1, si la collection n'existe pas elle est crée
+
+step 5 : Importer les données de façon graphique en se connectant aux routeurs
+
+step 6 : voir l'état du cluster 
+
+step7 : voir l'état du cluster pour chaque shard
+
+	- docker exec -it shard-01-noeud-a bash -c "echo 'rs.status()' | mongosh --port 27017" 
+	- docker exec -it shard-02-noeud-a bash -c "echo 'rs.status()' | mongosh --port 27017" 
+
+Step8 : Opérations CRUD
+
+Requête1 0 : 
+
+	db.restaurants.save({"_id" : 1, "nom_prenoms" : "KOFFI WILLIAMS", "nom_enseignants" : "Zegbolou Marc Dexter", "Note_du_groupe": 18});
+
+Requête1 : voir comment un document se présente dans notre base de données 
+
+	db.restaurants.findOne()
+
+Requête2 : Les restaurants dans le quartier de Brooklyn et qui font de la cuisine italienne
+	
+	db.restaurants.find({ "borough" : "Brooklyn","cuisine" : "Italian" })
+
+Requête3 : les noms des restaurants de Brooklyn qui font de la cuisine italienne qui ont dans leur nom 
+			le mot pizza et qui se situent sur la 5e avenue 
+
+db.getCollection('restaurants').find({"borough":"Brooklyn", "cuisine":"Italian", "name":/pizza/i, "address.street" : "5 Avenue"},{"name":1, "_id":0})
+
+
+Requête4 : Les noms et scores des restaurants de Manhattan ayant un score inférieur à 10
+
+	db.getCollection('restaurants').find({ "borough":"Manhattan","grades.score":{$lt : 10}},{"name":1,"grades.score":1, "_id":0})
+
+Requête5 :  les différents quartiers de New York 
+
+db.restaurants.distinct("borough")
+
+Requête6 : mise à jour
+
+db.restaurants.update (
+   {"_id" : ObjectId("594b9172c96c61e672dcd689")},
+   {$set : {"commentaire" : "Ceci est mon projet NoSQL "}}
+);
+
+Requête7 : Supprimer tout les restaurants qui ont une note de 0
+
+db.restaurants.remove(
+   {"note":0},
+   {"multi" : true}
+);
